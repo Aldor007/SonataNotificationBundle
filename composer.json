@@ -31,7 +31,9 @@
         "sonata-project/doctrine-orm-admin-bundle": "2.2.*",
         "guzzle/guzzle" : "3.*",
         "liip/monitor-bundle": "~1.0",
-        "videlalvaro/php-amqplib": "2.0.*"
+        "videlalvaro/php-amqplib": "2.0.*",
+        "pda/pheanstalk": "~3.0"
+
     },
     "require-dev": {
         "sonata-project/doctrine-orm-admin-bundle": "~2.2",

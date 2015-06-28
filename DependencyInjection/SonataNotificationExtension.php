@@ -186,7 +186,113 @@ class SonataNotificationExtension extends Extension
 
             $this->configureDoctrineBackends($container, $config, $checkLevel, $pause, $maxAge, $batchSize);
         }
+        if (isset($config['backends']['beanstalkd']) && $config['backend']  === 'sonata.notification.backend.beanstalkd') {
+            $this->configureBeanstalkdBackends($container, $config);
+        }
     }
+
+
+    protected function configureBeanstalkdBackends(ContainerBuilder $container, array $config) {
+
+        $queues = $config['queues'];
+        $qBackends = array();
+
+        $definition = $container->getDefinition('sonata.notification.backend.beanstalkd');
+        
+
+        // no queue defined, set a default one
+        if (count($queues) == 0) {
+            $queues = array(array(
+                'queue'   => 'default',
+                'default' => true,
+                'types'   => array()
+            ));
+        }
+        $connection = $config['backends']['beanstalkd']['connection'];
+
+        $defaultSet = false;
+        $declaredQueues = array();
+        $bundles = $container->getParameter('kernel.bundles');
+        if (isset($bundles['LeezyPheanstalkBundle'])) {
+            $definition->replaceArgument(0, new Reference('leezy.pheanstalk'));
+        }
+
+        foreach ($queues as $pos => &$queue) {
+            if (in_array($queue['queue'], $declaredQueues)) {
+                throw new \RuntimeException('The doctrine backend does not support 2 identicals queue name, please rename one queue');
+            }
+
+            $declaredQueues[] = $queue['queue'];
+
+            // make the configuration compatible with old code and rabbitmq
+            if (isset($queue['routing_key']) && strlen($queue['routing_key']) > 0) {
+                $queue['types'] = array($queue['routing_key']);
+            }
+
+            if (empty($queue['types']) && $queue['default'] === false) {
+                throw new \RuntimeException('You cannot declared a doctrine queue with no type defined with default = false');
+            }
+
+            if (!empty($queue['types']) && $queue['default'] === true) {
+                throw new \RuntimeException('You cannot declared a doctrine queue with types defined with default = true');
+            }
+
+            $id = $this->createBeanstalkdQueueBackend($container, $queue['queue'], $queue['types']);
+            $qBackends[$pos] = array(
+                'types'   => $queue['types'],
+                'backend' => new Reference($id)
+            );
+
+            if ($queue['default'] === true) {
+                if ($defaultSet === true) {
+                    throw new \RuntimeException('You can only set one doctrine default queue in your sonata notification configuration.');
+                }
+
+                $defaultSet = true;
+                $defaultQueue = $queue['queue'];
+            }
+        }
+
+        if ($defaultSet === false) {
+            throw new \RuntimeException("You need to specify a valid default queue for the doctrine backend!");
+        }
+
+        $definition
+            ->replaceArgument(1, $queues)
+            ->replaceArgument(2, $defaultQueue)
+            ->replaceArgument(3, $qBackends)
+            ->replaceArgument(4, $connection)
+        ;
+
+    } 
+    /**
+     * @param ContainerBuilder $container
+     * @param string           $manager
+     * @param boolean          $checkLevel
+     * @param integer          $pause
+     * @param integer          $maxAge
+     * @param integer          $batchSize
+     * @param string           $key
+     * @param array            $types
+     *
+     * @return string
+     */
+    protected function createBeanstalkdQueueBackend(ContainerBuilder $container,  $key, array $types = array())
+    {
+        if ($key == '') {
+            $id = 'sonata.notification.backend.beanstalkd.default_' . $this->amqpCounter++;
+        } else {
+            $id = 'sonata.notification.backend.beanstalkd.' . $key;
+        }
+
+        $definition = new Definition('Sonata\NotificationBundle\Backend\BeanstalkdBackend', array($key, $types));
+        $definition->setPublic(false);
+
+        $container->setDefinition($id, $definition);
+
+        return $id;
+    }
+
 
     /**
      * @param ContainerBuilder $container

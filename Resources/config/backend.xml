@@ -27,5 +27,13 @@
             <argument  />
             <argument  />
         </service>
+        
+         <service id="sonata.notification.backend.beanstalkd" class="Sonata\NotificationBundle\Backend\BeanstalkdBackendDispatcher" >
+            <argument />
+            <argument />
+            <argument />
+            <argument />
+            <argument />
+        </service>
     </services>
 </container>
